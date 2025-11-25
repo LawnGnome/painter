@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [features]
 default = ["neo4j"]
 neo4j = ["neo4rs"]
+strict-versioning = ["llvm-ir-analysis/strict-versioning"]
 
 [dependencies]
 # Internals
