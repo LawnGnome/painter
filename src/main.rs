@@ -1,7 +1,5 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(clippy::enum_variant_names)]
-#![feature(string_remove_matches)]
-#![feature(iter_array_chunks)]
 
 mod analysis;
 mod compile;
@@ -38,6 +36,7 @@ struct Args {
 /// `bytecodes_root`: A location that all bytecodes will be emitted via `rustc`, distributed in folders
 /// in the format of `sources_root/<name>-<version>`
 #[derive(clap::Args, Debug, Clone)]
+#[allow(clippy::struct_field_names)]
 struct Roots {
     /// Root directory containing the extracted sources tree.
     #[arg(short = 's', value_name = "DIR", value_hint = clap::ValueHint::DirPath)]
@@ -145,7 +144,7 @@ async fn main() -> Result<(), Error> {
     env_logger::init();
 
     let args = Args::parse();
-    log::trace!("{:?}", args);
+    log::trace!("{args:?}");
 
     match args.command {
         Command::CreateFreshDb {
@@ -174,10 +173,7 @@ async fn main() -> Result<(), Error> {
             //index::update_missing_crates(db.clone()).await?;
             index::set_latest_versions(db.clone()).await?;
         }
-        Command::Compile {
-            crate_fullname,
-            roots,
-        } => {
+        Command::Compile { .. } => {
             // let sources = roots.get_crate_sources()?;
             //compile_crate(&sources[&crate_fullname], roots.bytecodes_root.unwrap())?;
         }
@@ -187,7 +183,6 @@ async fn main() -> Result<(), Error> {
                 roots.bytecodes_root.unwrap(),
                 update_only,
             )
-            .await
             .unwrap();
         }
         Command::CountUnsafe {

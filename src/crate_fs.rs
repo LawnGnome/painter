@@ -1,9 +1,6 @@
 #![allow(clippy::module_name_repetitions)]
 use circular_buffer::CircularBuffer;
-use std::{
-    path::{Path, PathBuf},
-    sync::Mutex,
-};
+use std::path::{Path, PathBuf};
 
 /// Top error type returned during any stage of analysis from compile to data import.
 #[derive(thiserror::Error, Debug)]
@@ -42,10 +39,12 @@ impl CrateEntry {
         &self.full_name
     }
 
+    #[expect(unused)]
     pub fn name(&self) -> &str {
         self.full_name.rsplit_once('-').unwrap().0
     }
 
+    #[expect(unused)]
     pub fn version(&self) -> &str {
         self.full_name.rsplit_once('-').unwrap().1
     }
@@ -65,6 +64,7 @@ where
 
 #[derive(Debug)]
 pub struct CrateCache {
+    #[expect(unused)]
     src_crate_file: PathBuf,
     extracted_path: PathBuf,
     no_delete: bool,
@@ -113,7 +113,7 @@ impl CrateCache {
 }
 impl Drop for CrateCache {
     fn drop(&mut self) {
-        log::trace!("dropping {:?}", self);
+        log::trace!("dropping {self:?}");
         if !self.no_delete {
             std::fs::remove_dir_all(&self.extracted_path).unwrap();
         }
@@ -146,6 +146,7 @@ impl CrateFsConfig {
 
 pub struct CrateFs {
     cache: Box<CircularBuffer<1024, (CrateEntry, CrateCache)>>,
+    #[expect(unused)]
     index: crates_index::Index,
     config: CrateFsConfig,
 }
@@ -171,6 +172,8 @@ impl CrateFs {
             },
         )
     }
+
+    #[expect(unused)]
     pub fn close<S: AsRef<str>>(&mut self, fullname: S) -> Result<(), Error> {
         let entry = CrateEntry::new(fullname.as_ref().to_string())?;
 
@@ -205,6 +208,7 @@ impl CrateFs {
         }
     }
 
+    #[expect(unused)]
     pub fn config(&self) -> &CrateFsConfig {
         &self.config
     }
@@ -212,8 +216,7 @@ impl CrateFs {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    #[expect(unused)]
     fn init_logging() {
         // capture log messages with test harness
         let _ = env_logger::builder().is_test(true).try_init();

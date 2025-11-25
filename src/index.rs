@@ -1,5 +1,6 @@
 use crate::db::Db;
 use crates_index::Crate;
+use itertools::Itertools;
 use std::sync::Arc;
 
 #[derive(thiserror::Error, Debug)]
@@ -38,8 +39,8 @@ pub async fn update_missing_versions(conn: Arc<Db>) -> Result<(), Error> {
         }
     };
 
-    let iter = index.crates().array_chunks::<128>();
-    for chunk in iter {
+    let chunks = index.crates().chunks(128);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| do_crate(c, conn.clone()))
@@ -56,6 +57,7 @@ pub async fn update_missing_versions(conn: Arc<Db>) -> Result<(), Error> {
 /// asdf
 /// # Errors
 /// asdf
+#[expect(unused)]
 pub async fn update_missing_crates(conn: Arc<Db>) -> Result<(), Error> {
     let index = crates_index::Index::new_cargo_default()?;
 
@@ -65,14 +67,14 @@ pub async fn update_missing_crates(conn: Arc<Db>) -> Result<(), Error> {
                 println!("Missing crate: {}", c.name());
                 if let Err(e) = insert_fresh_crate(c.clone(), db.clone()).await {
                     log::error!("Failed crate: {}", c.name());
-                    log::error!("Failed crate: {}", e);
+                    log::error!("Failed crate: {e}");
                 }
             }
         }
     };
 
-    let iter = index.crates().array_chunks::<128>();
-    for chunk in iter {
+    let chunks = index.crates().chunks(128);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| do_crate(c, conn.clone()))
@@ -122,8 +124,8 @@ pub async fn insert_fresh_crate(c: Crate, db: Arc<Db>) -> Result<(), Error> {
 pub async fn create_fresh_db(conn: Arc<Db>) -> Result<(), Error> {
     let index = crates_index::Index::new_cargo_default()?;
 
-    let iter = index.crates().array_chunks::<64>();
-    for chunk in iter {
+    let chunks = index.crates().chunks(64);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| insert_fresh_crate(c, conn.clone()))
@@ -145,17 +147,17 @@ pub async fn set_latest_versions(conn: Arc<Db>) -> Result<(), Error> {
 
     let do_crate = |c: Crate, db: Arc<Db>| async move {
         let latest = c.highest_version();
-        db.set_latest(c.name(), latest.version()).await;
+        db.set_latest(c.name(), latest.version()).await
     };
 
-    let iter = index.crates().array_chunks::<64>();
-    for chunk in iter {
+    let chunks = index.crates().chunks(64);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| do_crate(c, conn.clone()))
             .collect();
 
-        futures::future::join_all(tasks).await;
+        futures::future::try_join_all(tasks).await?;
     }
 
     Ok(())

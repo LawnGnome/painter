@@ -6,10 +6,8 @@ use std::path::Path;
 /// Top error type returned during any stage of analysis from compile to data import.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    ///
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),
-    ///
     #[error("LLVM IR failure: {0}")]
     LLVMError(String),
 }

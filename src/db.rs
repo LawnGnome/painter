@@ -19,6 +19,7 @@ pub struct Db {
 }
 impl Db {
     #[allow(clippy::must_use_candidate)]
+    #[expect(unused)]
     pub fn inner(&self) -> Arc<Graph> {
         self.conn.clone()
     }
@@ -214,6 +215,7 @@ impl Db {
     /// # Errors
     /// This function will return an `painter::db::Error` in the event of a database error.
     #[allow(clippy::similar_names)]
+    #[expect(unused)]
     pub async fn upsert_invoke(
         &self,
         caller: &str,
@@ -261,6 +263,7 @@ impl Db {
     /// a new Node is not returned during insertion.
     /// # Errors
     /// This function will return an `painter::db::Error` in the event of a database error.
+    #[expect(unused)]
     pub async fn upsert_crate_version<'a, I, S1, S2, S3, S4, S5>(
         &self,
         name: &str,
@@ -477,6 +480,7 @@ impl Db {
     ///
     /// # Errors
     ///
+    #[expect(unused)]
     pub async fn crate_version_exists<S1, S2>(&self, name: S1, version: S2) -> Result<bool, Error>
     where
         S1: AsRef<str>,

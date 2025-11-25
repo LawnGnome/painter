@@ -1,6 +1,6 @@
 #![allow(clippy::module_name_repetitions)]
 
-use crate::crate_fs::{CrateCache, CrateEntry, CrateFs};
+use crate::crate_fs::CrateFs;
 use crates_index::{Crate, Index};
 use std::{
     path::{Path, PathBuf},
@@ -10,22 +10,17 @@ use walkdir::WalkDir;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    ///
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),
-    ///
     #[error("Crate compilation failed")]
     CompileFailed(String),
-    ///
     #[error("Clean stage failed")]
     CleanFailure(std::process::Output),
-    ///
     #[error("LLVM IR failure: {0}")]
+    #[expect(unused)]
     LLVMError(String),
-    ///
     #[error("Indexing Error: {0}")]
     IndexError(#[from] crates_index::Error),
-    ///
     #[error("Indexing Error: {0}")]
     CrateFsError(#[from] crate::crate_fs::Error),
 }
@@ -48,7 +43,7 @@ pub fn clean(path: &Path) -> Result<(), Error> {
         .output()
         .unwrap();
 
-    std::fs::remove_dir_all(path.join("target"));
+    std::fs::remove_dir_all(path.join("target"))?;
 
     if output.status.success() {
         Ok(())
@@ -99,10 +94,10 @@ fn compile_crate<P: AsRef<Path>>(
         .output()
         .unwrap();
 
-    log::trace!("Compiled: {} with result: {:?}", fullname, output);
+    log::trace!("Compiled: {fullname} with result: {output:?}");
 
     if output.status.success() {
-        std::fs::create_dir(&output_dir);
+        std::fs::create_dir(&output_dir)?;
 
         // If the compile succeeded, search for emitted .bc files of bytecode and copy them over
         // to the Roots::bytecode_root directory.
@@ -127,14 +122,14 @@ fn compile_crate<P: AsRef<Path>>(
             std::str::from_utf8(&output.stdout).unwrap(),
             std::str::from_utf8(&output.stderr).unwrap()
         )));
-    };
+    }
 
     Ok(())
 }
 
 /// Walks the entire `Roots::sources_root` and attempts to compile all crates in parallel.
-pub async fn compile_all<P: AsRef<Path> + Send + Sync>(
-    mut fs: CrateFs,
+pub fn compile_all<P: AsRef<Path> + Send + Sync>(
+    fs: CrateFs,
     bc_root: P,
     update_only: bool,
 ) -> Result<(), Error> {
@@ -152,7 +147,7 @@ pub async fn compile_all<P: AsRef<Path> + Send + Sync>(
         let v = c.highest_version();
 
         let fullname = format!("{}-{}", c.name(), v.version());
-        log::trace!("Opening: {}", fullname);
+        log::trace!("Opening: {fullname}");
 
         if update_only && bc_root.join(&fullname).exists() {
             log::info!("{} bytecode exists, skipping..", &fullname);
@@ -164,20 +159,20 @@ pub async fn compile_all<P: AsRef<Path> + Send + Sync>(
             if let Ok(entry) = lock.open(&fullname) {
                 entry.path().to_path_buf()
             } else {
-                log::error!("Opening failed on {}", fullname);
+                log::error!("Opening failed on {fullname}");
                 return;
             }
         };
 
         if let Err(e) = compile_crate(c.name(), v.version(), &cache, &bc_root) {
-            log::error!("{:?}", e);
+            log::error!("{e:?}");
         }
         //}
     };
 
     index
         .crates_parallel()
-        .filter_map(|c| c.ok())
+        .filter_map(Result::ok)
         .for_each(|c| {
             do_crate(c, fs.clone(), bc_root.as_ref().to_path_buf());
         });
