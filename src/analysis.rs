@@ -1,4 +1,5 @@
 use crate::{db::Db, Error, Roots};
+use itertools::Itertools;
 use llvm_ir_analysis::{llvm_ir::Module, ModuleAnalysis};
 use rayon::prelude::*;
 use rustc_demangle::demangle;
@@ -34,17 +35,20 @@ pub fn extract_calls<P: AsRef<Path>>(crate_bc_dir: P) -> Result<Vec<(String, Str
         let analysis = ModuleAnalysis::new(&module);
 
         let graph = analysis.call_graph();
-        graph.inner().all_edges().for_each(|(src_raw, dst_raw, _)| {
-            let src = format!("{:#}", demangle(src_raw));
-            let dst = format!("{:#}", demangle(dst_raw));
+        graph
+            .inner()
+            .all_edges()
+            .for_each(|(src_raw, dst_raw, ())| {
+                let src = format!("{:#}", demangle(src_raw));
+                let dst = format!("{:#}", demangle(dst_raw));
 
-            if !BLOCKED_STRINGS
-                .iter()
-                .any(|s| src.contains(*s) || dst.contains(*s))
-            {
-                calls.push((src, dst));
-            }
-        });
+                if !BLOCKED_STRINGS
+                    .iter()
+                    .any(|s| src.contains(*s) || dst.contains(*s))
+                {
+                    calls.push((src, dst));
+                }
+            });
     }
 
     Ok(calls)
@@ -67,11 +71,11 @@ pub async fn export_crate_db<P: AsRef<Path>>(crate_bc_dir: P, db: Arc<Db>) -> Re
 
     // If this crate/version has an invoke, assume its completed and bail
     if db.has_any_invoke(crate_name, crate_version).await? {
-        log::trace!("{}-{} Exists, skipping..", crate_name, crate_version);
+        log::trace!("{crate_name}-{crate_version} Exists, skipping..");
         return Ok(());
     }
 
-    log::trace!("Importing: {}", crate_name);
+    log::trace!("Importing: {crate_name}");
 
     for (caller, callee) in &calls {
         let dst_crate = callee.split_once("::").unwrap_or(("NONE", "")).0;
@@ -95,8 +99,8 @@ pub async fn export_all_db<P: AsRef<Path>>(bc_root: P, db: Arc<Db>) -> Result<()
         .filter(|e| e.path().is_dir())
         .collect();
 
-    let iter = dirs.iter().array_chunks::<16>();
-    for chunk in iter {
+    let chunks = dirs.iter().chunks(16);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| export_crate_db(c.path(), db.clone()))
@@ -145,6 +149,7 @@ impl CountUnsafeResult {
     }
 }
 
+#[expect(unused)]
 pub(crate) async fn count_unsafe_crate_extract(
     c: Crate,
     roots: Roots,
@@ -192,13 +197,13 @@ pub(crate) async fn count_unsafe_crate_extract(
     }
     Ok(())
 }
+
 pub(crate) async fn count_unsafe_crate(c: Crate, roots: Roots, db: Arc<Db>) -> Result<(), Error> {
-    let compressed_root = &roots.compressed_root;
     let sources_root = &roots.sources_root;
 
     for v in c.versions() {
         let crate_fullname = format!("{}-{}", v.name(), v.version());
-        let crate_path = sources_root.join(format!("{}", &crate_fullname));
+        let crate_path = sources_root.join(&crate_fullname);
 
         // Lets work off the tgz for now, since we cant extract
         // TODO: this needs to be unified to a file driver
@@ -215,7 +220,7 @@ pub(crate) async fn count_unsafe_crate(c: Crate, roots: Roots, db: Arc<Db>) -> R
                 let unsafe_result: CountUnsafeResult = serde_json::from_str(raw_json).unwrap();
                 if unsafe_result.has_unsafe() {
                     log::debug!("{} unsafe", &crate_fullname);
-                    db.set_unsafe(v.name(), v.version(), &unsafe_result).await;
+                    db.set_unsafe(v.name(), v.version(), &unsafe_result).await?;
                     //.unwrap();
                 }
             }
@@ -227,8 +232,8 @@ pub(crate) async fn count_unsafe_crate(c: Crate, roots: Roots, db: Arc<Db>) -> R
 pub(crate) async fn count_unsafe(roots: &Roots, db: Arc<Db>) -> Result<(), Error> {
     let index = crates_index::Index::new_cargo_default().map_err(crate::index::Error::from)?;
 
-    let iter = index.crates().array_chunks::<128>();
-    for chunk in iter {
+    let chunks = index.crates().chunks(128);
+    for chunk in &chunks {
         let tasks: Vec<_> = chunk
             .into_iter()
             .map(|c| count_unsafe_crate(c, roots.clone(), db.clone()))
@@ -249,12 +254,13 @@ fn export_crate_csv<P: AsRef<Path>>(crate_bc_dir: P) -> Result<(), Error> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(crate_bc_dir.as_ref().join("calls.csv"))
             .unwrap();
 
-        calls.iter().enumerate().for_each(|(_, (src, dst))| {
+        for (src, dst) in &calls {
             writeln!(file, "{crate_fullname},{src},{dst}").unwrap();
-        });
+        }
     }
 
     Ok(())

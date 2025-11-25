@@ -31,6 +31,7 @@ llvm-ir-analysis = { path = "llvm-ir-analysis", features = ["llvm-19"] }
 rustc-demangle = "0.1"
 
 #Utility
+itertools = "0.14"
 walkdir = "2.3"
 crates-index = "0.19"
 
